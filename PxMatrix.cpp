@@ -51,7 +51,7 @@ void PxMATRIX::init(uint16_t width, uint16_t height, uint8_t LATCH, uint8_t OE, 
 
   if (width * height > PxMATRIX_MAX_PIXELS) {
 #ifdef DEBUG_ESP_PORT
-    DEBUG_ESP_PORT.print("[PxMatrix] Amount of needed pixelse bigger than PxMATRIX_MAX_PIXELS.\n");
+    DEBUG_ESP_PORT.print("[PxMatrix] Amount of needed pixels bigger than PxMATRIX_MAX_PIXELS.\n");
 #endif
   }
 
