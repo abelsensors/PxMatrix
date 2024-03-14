@@ -96,8 +96,6 @@ void PxMATRIX::init(uint16_t width, uint16_t height, uint8_t LATCH, uint8_t OE, 
 #ifdef ESP32
 void PxMATRIX::fm612xWriteRegister(uint16_t reg_value, uint8_t reg_position) {
   spi_t* spi = SPI.bus();
-  // reg_value = 0x1234;  debug
-
   for (int i = 0; i < 47; i++) SPI_2BYTE(reg_value);
 
   spiSimpleTransaction(spi);
