@@ -8,9 +8,9 @@ BSD license, check license.txt for more information
 #include "PxMatrix.h"
 
 // the display buffers for the LED matrix
-static PxMatrixBuffer* PxMATRIX_buffer = nullptr;
+static PxMatrixBuffer PxMATRIX_buffer = {};
 #ifdef PxMATRIX_double_buffer
-static PxMatrixBuffer* PxMATRIX_buffer2 = nullptr;
+static PxMatrixBuffer PxMATRIX_buffer2 = {};
 #endif
 
 // Pass 8-bit (each) R,G,B, get back 16-bit packed color
@@ -20,19 +20,10 @@ uint16_t PxMATRIX::color565(uint8_t r, uint8_t g, uint8_t b) {
 
 // Init code common to both constructors
 void PxMATRIX::init(uint16_t width, uint16_t height, uint8_t LATCH, uint8_t OE, uint8_t A, uint8_t B) {
-  // the display buffers for the LED matrix
-  if (PxMATRIX_buffer == nullptr) {
-    PxMATRIX_buffer = new PxMatrixBuffer;
-  }
-#ifdef PxMATRIX_double_buffer
-  if (PxMATRIX_buffer2 == nullptr) {
-    PxMATRIX_buffer2 = new PxMatrixBuffer;
-  }
-#endif
-
   _LATCH_PIN = LATCH;
   _OE_PIN = OE;
   _display_color = 0;
+  _color_depth = 0;
 
   _A_PIN = A;
   _B_PIN = B;
@@ -90,7 +81,6 @@ void PxMATRIX::init(uint16_t width, uint16_t height, uint8_t LATCH, uint8_t OE, 
 #ifdef PxMATRIX_double_buffer
   clearDisplay(1);
 #endif
-  setColorDepth(PxMATRIX_MAX_COLOR_DEPTH);
 }
 
 #ifdef ESP32
@@ -104,16 +94,14 @@ void PxMATRIX::fm612xWriteRegister(uint16_t reg_value, uint8_t reg_position) {
   spi->dev->miso_dlen.usr_miso_dbitlen = 0;
   spi->dev->data_buf[0] = reg_value >> 8;
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr)
-    ;
+  while (spi->dev->cmd.usr);
 
   GPIO_REG_SET(1 << _LATCH_PIN);
 
   spi->dev->mosi_dlen.usr_mosi_dbitlen = (reg_position - 8) - 1;
   spi->dev->data_buf[0] = reg_value >> (reg_position - 8);
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr)
-    ;
+  while (spi->dev->cmd.usr);
   spiEndTransaction(spi);
 
   SPI_BYTE(reg_value & 0xff);
@@ -299,6 +287,7 @@ void PxMATRIX::setColorOffset(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 void PxMATRIX::fillMatrixBuffer(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, bool selected_buffer) {
+  if (_color_depth == 0) return;
   if (_rotate) {
     uint16_t temp_x = x;
     x = y;
@@ -450,10 +439,10 @@ void PxMATRIX::fillMatrixBuffer(int16_t x, int16_t y, uint8_t r, uint8_t g, uint
   total_offset_g = total_offset_r - _pattern_color_bytes;
   total_offset_b = total_offset_g - _pattern_color_bytes;
 
-  PxMatrixBuffer* PxMATRIX_bufferp = PxMATRIX_buffer;
+  PxMatrixBuffer* PxMATRIX_bufferp = &PxMATRIX_buffer;
 
 #ifdef PxMATRIX_double_buffer
-  PxMATRIX_bufferp = selected_buffer ? PxMATRIX_buffer2 : PxMATRIX_buffer;
+  PxMATRIX_bufferp = selected_buffer ? &PxMATRIX_buffer2 : &PxMATRIX_buffer;
 #endif
 
   // if a color closer to on than off, switch the color on
@@ -527,6 +516,18 @@ void PxMATRIX::setColorDepth(uint8_t color_depth) {
   }
   _color_depth = color_depth;
   _color_half_step = static_cast<int>((256 / _color_depth) / 2);
+
+  // color depth has been set, so now we know the size of the buffers
+  for (uint8_t i = 0; i < _color_depth; i++) {
+    if (PxMATRIX_buffer.Data[i] == nullptr) {
+      PxMATRIX_buffer.Data[i] = new uint8_t[(_width * _height * 3) / 8];
+    }
+#ifdef PxMATRIX_double_buffer
+    if (PxMATRIX_buffer2.Data[i] == nullptr) {
+      PxMATRIX_buffer2.Data[i] = new uint8_t[(_width * _height * 3) / 8];
+    }
+#endif
+  }
 }
 
 void PxMATRIX::setSpiFrequency(uint32_t spi_frequency) {
@@ -695,6 +696,7 @@ void PxMATRIX::latch(uint16_t show_time) {
 void PxMATRIX::display() { display(PxMATRIX_DEFAULT_SHOWTIME); }
 
 void PxMATRIX::display(uint16_t show_time) {
+  if (_color_depth == 0) return;
   if (show_time == 0) show_time = 1;
 
   // How long do we keep the pixels on
@@ -705,14 +707,20 @@ void PxMATRIX::display(uint16_t show_time) {
   ESP.wdtFeed();
 #endif
 
-  PxMatrixBuffer* bufferp = PxMATRIX_buffer;
+  PxMatrixBuffer* bufferp = &PxMATRIX_buffer;
 
 #ifdef PxMATRIX_double_buffer
   if (_active_buffer)
-    bufferp = PxMATRIX_buffer2;
+    bufferp = &PxMATRIX_buffer2;
   else
-    bufferp = PxMATRIX_buffer;
+    bufferp = &PxMATRIX_buffer;
 #endif
+  for (uint8_t i = 0; i < _color_depth; i++) {
+    if (PxMATRIX_buffer.Data[i] == nullptr) return;
+#ifdef PxMATRIX_double_buffer
+    if (PxMATRIX_buffer2.Data[i] == nullptr) return;
+#endif
+  }
 
   for (uint8_t i = 0; i < _row_pattern; i++) {
     if (_driver_chip == SHIFT) {
@@ -775,16 +783,14 @@ void PxMATRIX::display(uint16_t show_time) {
       spi->dev->miso_dlen.usr_miso_dbitlen = 0;
       spi->dev->data_buf[0] = v;
       spi->dev->cmd.usr = 1;
-      while (spi->dev->cmd.usr)
-        ;
+      while (spi->dev->cmd.usr);
 
       GPIO_REG_SET(1 << _LATCH_PIN);
 
       spi->dev->mosi_dlen.usr_mosi_dbitlen = 2;
       spi->dev->data_buf[0] = v << 5;
       spi->dev->cmd.usr = 1;
-      while (spi->dev->cmd.usr)
-        ;
+      while (spi->dev->cmd.usr);
       GPIO_REG_CLEAR(1 << _LATCH_PIN);
 
       spiEndTransaction(spi);
@@ -942,12 +948,15 @@ void PxMATRIX::clearDisplay(void) {
 
 // clear everything
 void PxMATRIX::clearDisplay(bool selected_buffer) {
+  for (uint8_t i = 0; i < _color_depth; i++) {
 #ifdef PxMATRIX_double_buffer
-  if (selected_buffer)
-    memset(PxMATRIX_buffer2->Data, 0, PxMATRIX_MAX_COLOR_DEPTH * buffer_size);
-  else if (selected_buffer)
-    memset(PxMATRIX_buffer->Data, 0, PxMATRIX_MAX_COLOR_DEPTH * buffer_size);
+    if (selected_buffer && PxMATRIX_buffer2.Data[i] != nullptr)
+      memset(PxMATRIX_buffer2.Data[i], 0, (_width * _height * 3) / 8);
+    else if (selected_buffer && PxMATRIX_buffer.Data[i] != nullptr)
+      memset(PxMATRIX_buffer.Data[i], 0, (_width * _height * 3) / 8);
 #else
-  if (selected_buffer) memset(PxMATRIX_buffer, 0, PxMATRIX_MAX_COLOR_DEPTH * buffer_size);
+    if (selected_buffer && PxMATRIX_buffer.Data[i] != nullptr)
+      memset(PxMATRIX_buffer.Data[i], 0, (_width * _height * 3) / 8);
 #endif
+  }
 }
