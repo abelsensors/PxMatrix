@@ -521,10 +521,12 @@ void PxMATRIX::setColorDepth(uint8_t color_depth) {
   for (uint8_t i = 0; i < _color_depth; i++) {
     if (PxMATRIX_buffer.Data[i] == nullptr) {
       PxMATRIX_buffer.Data[i] = new uint8_t[(_width * _height * 3) / 8];
+      memset(PxMATRIX_buffer.Data[i], 0, (_width * _height * 3) / 8);
     }
 #ifdef PxMATRIX_double_buffer
     if (PxMATRIX_buffer2.Data[i] == nullptr) {
       PxMATRIX_buffer2.Data[i] = new uint8_t[(_width * _height * 3) / 8];
+      memset(PxMATRIX_buffer2.Data[i], 0, (_width * _height * 3) / 8);
     }
 #endif
   }
