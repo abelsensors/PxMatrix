@@ -43,7 +43,6 @@ BSD license, check license.txt for more information
 #ifndef PxMATRIX_MAX_PIXELS
 #define PxMATRIX_MAX_PIXELS (PxMATRIX_MAX_HEIGHT * PxMATRIX_MAX_WIDTH)
 #endif
-#define buffer_size (PxMATRIX_MAX_PIXELS * 3 / 8)
 
 // Defines how long we display things by default
 #ifndef PxMATRIX_DEFAULT_SHOWTIME
@@ -85,6 +84,7 @@ BSD license, check license.txt for more information
 #endif
 
 #include <SPI.h>
+
 #include "Adafruit_GFX.h"
 #include "Arduino.h"
 
@@ -155,7 +155,7 @@ enum driver_chips { SHIFT, FM6124, FM6126A };
 enum color_orders { RRGGBB, RRBBGG, GGRRBB, GGBBRR, BBRRGG, BBGGRR };
 
 struct PxMatrixBuffer {
-  uint8_t Data[PxMATRIX_MAX_COLOR_DEPTH][buffer_size] = {0};
+  uint8_t* Data[PxMATRIX_MAX_COLOR_DEPTH] = {0};
 };
 
 class PxMATRIX : public Adafruit_GFX {
