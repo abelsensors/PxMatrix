@@ -365,7 +365,7 @@ void PxMATRIX::fillMatrixBuffer(int16_t x, int16_t y, uint8_t r, uint8_t g, uint
     if (_scan_pattern == WZAGZIG) {
       // apply x/y block transform for WZAGZIG, only works for height/pattern=4
       block_linear_index = block_x_inv * 2 + block_y_inv;
-    } else if (_scan_pattern == VZAG) {
+    } else {
       // apply x/y block transform for VZAG, only works for height/pattern=4 and 32x32 panels until a larger example is
       // found
       block_linear_index = block_x_inv * 3 * block_y + block_y_inv * (block_x_inv + 1);
