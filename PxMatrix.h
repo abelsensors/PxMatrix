@@ -334,8 +334,8 @@ class PxMATRIX : public Adafruit_GFX {
   // Init code common to both constructors
   void init(uint16_t width, uint16_t height, uint8_t LATCH, uint8_t OE, uint8_t A, uint8_t B);
 
-  // Light up LEDs and hold for show_time microseconds
-  void latch(uint16_t show_time);
+  // Latch the data in to the buffers
+  void latch();
 
   // Set row multiplexer
   void set_mux(uint8_t value);
