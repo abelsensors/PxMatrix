@@ -174,7 +174,6 @@ class PxMATRIX : public Adafruit_GFX {
   void clearDisplay(bool selected_buffer);
 
   // Updates the display
-  void display(uint16_t show_time);
   void display();
 
   // Draw pixels

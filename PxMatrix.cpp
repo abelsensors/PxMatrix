@@ -681,18 +681,10 @@ void PxMATRIX::latch() {
   }
 }
 
-void PxMATRIX::display() { display(PxMATRIX_DEFAULT_SHOWTIME); }
-
-void PxMATRIX::display(uint16_t show_time) {
+void PxMATRIX::display() {
   if (_color_depth == 0) return;
-  if (show_time == 0) show_time = 1;
 
   static uint32_t row_on_time = 0;
-
-#ifdef ESP8266
-  ESP.wdtFeed();
-#endif
-
   PxMatrixBuffer* bufferp = &PxMATRIX_buffer;
 
 #ifdef PxMATRIX_double_buffer
@@ -709,21 +701,13 @@ void PxMATRIX::display(uint16_t show_time) {
   }
 
   for (_display_color = 0; _display_color < _color_depth; _display_color++) {
-    for (uint8_t i = 0; i < _row_pattern; i++) {
+    for (uint8_t row = 0; row < _row_pattern; row++) {
       if (_driver_chip == SHIFT) {
-#ifdef __AVR__
-        uint8_t this_byte;
-        for (uint32_t byte_cnt = 0; byte_cnt < _send_buffer_size; byte_cnt++) {
-          this_byte = (*bufferp)[_display_color][i * _send_buffer_size + byte_cnt];
-          SPI_BYTE(this_byte);
-        }
-#else
         int64_t start_time = esp_timer_get_time();
-        SPI_TRANSFER(&bufferp->Data[_display_color][i * _send_buffer_size], _send_buffer_size);
+        SPI_TRANSFER(&bufferp->Data[_display_color][row * _send_buffer_size], _send_buffer_size);
         int64_t end_time = esp_timer_get_time();
-#endif
         digitalWrite(_OE_PIN, 1);
-        set_mux(i);
+        set_mux(row);
         latch();
         digitalWrite(_OE_PIN, 0);
         if (_display_color == 0) {
@@ -734,78 +718,10 @@ void PxMATRIX::display(uint16_t show_time) {
           delayMicroseconds((row_on_time << _display_color) - row_on_time);
         }
       }
-
-      if (_driver_chip == FM6124 || _driver_chip == FM6126A)  // _driver_chip == FM6124
-      {
-#ifdef ESP32
-
-        GPIO_REG_CLEAR(1 << _OE_PIN);
-        uint8_t* bf = &bufferp->Data[_display_color][i * _send_buffer_size];
-
-        spi_t* spi = SPI.bus();
-        spiSimpleTransaction(spi);
-
-        spiWriteNL(spi, bf, _send_buffer_size - 1);
-        uint8_t v = bf[_send_buffer_size - 1];
-
-        GPIO_REG_SET(1 << _OE_PIN);
-
-        spi->dev->mosi_dlen.usr_mosi_dbitlen = 4;
-        spi->dev->miso_dlen.usr_miso_dbitlen = 0;
-        spi->dev->data_buf[0] = v;
-        spi->dev->cmd.usr = 1;
-        while (spi->dev->cmd.usr);
-
-        GPIO_REG_SET(1 << _LATCH_PIN);
-
-        spi->dev->mosi_dlen.usr_mosi_dbitlen = 2;
-        spi->dev->data_buf[0] = v << 5;
-        spi->dev->cmd.usr = 1;
-        while (spi->dev->cmd.usr);
-        GPIO_REG_CLEAR(1 << _LATCH_PIN);
-
-        spiEndTransaction(spi);
-        set_mux(i);
-#else
-#if defined(ESP8266) || defined(ESP32)
-        pinMode(_SPI_CLK, SPECIAL);
-        pinMode(_SPI_MOSI, SPECIAL);
-#endif
-        SPI_TRANSFER(&bufferp->Data[_display_color][i * _send_buffer_size], _send_buffer_size - 1);
-        pinMode(_SPI_CLK, OUTPUT);
-        pinMode(_SPI_MOSI, OUTPUT);
-        pinMode(_SPI_MISO, OUTPUT);
-        pinMode(_SPI_SS, OUTPUT);
-        set_mux(i);
-
-        uint8_t v = bufferp->Data[_display_color][i * _send_buffer_size + _send_buffer_size - 1];
-        for (uint8_t this_byte = 0; this_byte < 8; this_byte++) {
-          if (((v >> (7 - this_byte)) & 1))
-            GPIO_REG_SET(1 << _SPI_MOSI);
-          else
-            GPIO_REG_CLEAR(1 << _SPI_MOSI);
-          GPIO_REG_SET(1 << _SPI_CLK);
-          GPIO_REG_CLEAR(1 << _SPI_CLK);
-
-          if (this_byte == 4)
-            // GPIO_REG_SET( 1 << _LATCH_PIN);
-            digitalWrite(_LATCH_PIN, HIGH);
-        }
-        // GPIO_REG_WRITE(GPIO_  spi_init();
-
-        digitalWrite(_LATCH_PIN, LOW);
-        // GPIO_REG_SET( 1 << _OE_PIN);
-        digitalWrite(_OE_PIN, 0);  //<<<< insert this
-        unsigned long start_time = micros();
-
-        while ((micros() - start_time) < latch_time) delayMicroseconds(1);
-        // GPIO_REG_CLEAR( 1 << _OE_PIN);
-        digitalWrite(_OE_PIN, 1);
-        // latch();
-#endif
-      }
     }
   }
+  delayMicroseconds(
+      row_on_time);  // Last row, data will not shift in again before disabling the LEDs so wait the row_on_time
   digitalWrite(_OE_PIN, 1);
 }
 
